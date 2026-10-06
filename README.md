@@ -4,18 +4,22 @@ A threat-modelling exercise for the SecureStack platform and its showcase applic
 
 ## Introduction
 
-This threat model details runbook scenarios of attacks against SecureStack, a DevSecOps platform securing an AI healthcare application across the full lifecycle (build time, deploy time, and runtime). It assesses both a traditional software-supply-chain attack and an AI-specific attack, reflecting that modern applications must defend against both classic and emerging, AI-native threats.
+This threat model details runbook scenarios of attacks against SecureStack, a DevSecOps platform securing an AI healthcare application across the full lifecycle (build time, deploy time, and runtime). It covers the attacks most likely to be used against this system, spanning both initial access and post-compromise impact, so the defences can be assessed end to end.
 
 ## Scope
 
-Two scenarios are modelled:
+Four scenarios are modelled, covering the full attack lifecycle from initial access to impact:
 
-1. CI/CD Pipeline Compromise - a software-supply-chain attack that attempts to inject malicious code or configuration through the pipeline and have it deployed as a trusted workload.
-2. Prompt Injection - an AI-specific attack that abuses the application's normal input to manipulate the Large Language Model behind the triage API.
+1. CI/CD Pipeline Compromise - a software-supply-chain attack that injects malicious code through the pipeline (initial access).
+2. Prompt Injection - an AI-specific attack that manipulates the model via adversarial input (initial access).
+3. Secret Theft and Cloud Lateral Movement - an attacker with a foothold steals credentials and moves through the AWS account (post-compromise impact).
+4. Container Escape and Runtime Compromise - an attacker with code execution in a pod attempts to break out to the host and cluster (post-compromise impact).
+
+Scenarios 1 and 2 address how an attacker gets in; scenarios 3 and 4 address what they can do once in. Together they test whether a single compromise can be contained.
 
 ## Methodology
 
-Each scenario is assessed against the cyber kill chain, mapped to MITRE ATT&CK (for the supply-chain scenario) and MITRE ATLAS (for the AI scenario), with STRIDE used for control-gap analysis. Each identified risk is mapped to a mitigation that exists in SecureStack, distinguishing controls that are implemented, proven live, or planned as next steps. This keeps the model honest: it documents the real security posture, not an aspirational one.
+Each scenario is assessed against the cyber kill chain, mapped to MITRE ATT&CK (and MITRE ATLAS for the AI scenario), with STRIDE used for control-gap analysis. Each identified risk is mapped to a mitigation that exists in SecureStack, distinguishing controls that are implemented, proven live, or planned as next steps. This keeps the model honest: it documents the real security posture, not an aspirational one.
 
 ## System Under Assessment
 
@@ -25,7 +29,7 @@ Each scenario is assessed against the cyber kill chain, mapped to MITRE ATT&CK (
 
 ## Conclusion
 
-Across both scenarios, the inherent (pre-control) risk is predominantly High, driven by the sensitivity of healthcare data, the ability of a supply-chain compromise to act in the cloud account, and the AI-native risk that a model cannot distinguish instructions from data. With SecureStack's layered, defence-in-depth controls applied, the dominant risk paths are reduced to Low-to-Medium, because an attacker must defeat multiple independent controls rather than any single one.
+Across all four scenarios, the inherent (pre-control) risk is predominantly High, driven by the sensitivity of healthcare data, the ability of a supply-chain compromise to act in the cloud account, the AI-native risk that a model cannot distinguish instructions from data, and the blast-radius danger of a single compromise cascading. With SecureStack's layered, defence-in-depth controls applied, the dominant risk paths are reduced to Low-to-Medium, because an attacker must defeat multiple independent controls rather than any single one.
 
 ## Overall Risk Overview
 
@@ -33,16 +37,19 @@ Across both scenarios, the inherent (pre-control) risk is predominantly High, dr
 | --- | --- | --- | --- | --- |
 | 1. CI/CD Pipeline Compromise | Malicious code deployed via the supply chain | High | 13-stage gated pipeline, keyless OIDC, GitOps, IRSA, Kyverno, SIEM/SOAR | Low-Medium |
 | 2. Prompt Injection | Model manipulation via adversarial input | High | llm-guard (fail-closed), AI-BOM ceilings, custom Semgrep rules, output scanning | Low-Medium |
+| 3. Secret Theft and Lateral Movement | Credential theft and account-wide movement | High | IMDSv2, scoped IRSA, RBAC, scoped secrets, KMS, SOAR auto-disable | Low-Medium |
+| 4. Container Escape | Breakout to the host and cluster | High | Pod hardening, Kyverno admission, PSS, Falco runtime detection, network policies | Low-Medium |
 
 ## Top Controls Required (consolidated)
 
 - A merge-blocking 13-stage security pipeline (secret scanning, SAST, SCA, SBOM, IaC, policy, AI-BOM, DAST).
-- Keyless OIDC authentication with least-privilege, short-lived roles; IRSA per-pod identity; IMDSv2.
+- Keyless OIDC authentication with least-privilege, short-lived roles; IRSA per-pod identity; IMDSv2 with hop limit.
 - GitOps delivery (ArgoCD) so only reviewed, git-declared manifests deploy.
 - Runtime AI guardrails (llm-guard, fail-closed) blocking prompt injection and scanning output.
 - AI governance: AI-BOM data-classification ceilings and CLAUDE.md agent governance.
-- Admission control (Kyverno) and runtime detection (Falco).
-- Centralised SIEM (OpenSearch correlating CloudTrail, GuardDuty, app logs) with automated response (SOAR).
+- Pod hardening (non-root, dropped capabilities, read-only filesystem) and Kyverno admission control.
+- Scoped secrets access (ESO to two secret ARNs) with KMS CMK encryption.
+- Runtime detection (Falco eBPF), zero-trust network policies, and a centralised SIEM (OpenSearch correlating CloudTrail, GuardDuty, app logs) with automated response (SOAR).
 
 ## Threat Modelling Process
 
@@ -64,8 +71,10 @@ mindmap
       Risk Summary
       Controls Required
     Scenarios
-      CICD Pipeline Compromise
-      Prompt Injection
+      1 CICD Pipeline Compromise
+      2 Prompt Injection
+      3 Secret Theft and Lateral Movement
+      4 Container Escape
     Outcome
       Risks mapped to real controls
       Implemented or Proven live or Next step
@@ -73,7 +82,7 @@ mindmap
 
 ## Repository Structure
 
-Scenario 1 (CICD-Compromise) and Scenario 2 (Prompt-Injection) each contain nine files: a README (kill chain description), Attacker-Flow, Data-Flow-Diagram, HLD, Inherent-Risk-Assessment, a MITRE sequence (ATT&CK for Scenario 1, ATLAS for Scenario 2), STRIDE, Risk-Summary, and Controls-Required.
+Each of the four scenario folders contains nine files: a README (kill chain description), Attacker-Flow, Data-Flow-Diagram, HLD, Inherent-Risk-Assessment, a MITRE sequence (ATT&CK, with ATLAS for the AI scenario), STRIDE, Risk-Summary, and Controls-Required.
 
 ## Related Repositories
 
